@@ -149,7 +149,7 @@ decode(const char *s)
 }
 
 
-#define HISTORY_FULL() (history_is_stifled() && history_length >= history_max_entries)
+/* Replay one or more statement from the history */
 
 static int
 operate_and_get_next (int count, int c)
@@ -165,7 +165,11 @@ operate_and_get_next (int count, int c)
     /* Determine the index of the next line to use. */
     next_line_index = where_history();
 
-    if (!HISTORY_FULL() && (next_line_index < history_length - 1))
+    /* If the history is not null and we are not already at its most
+       recent entry, point to the next one otherwise redisplay the
+       latest one again */
+    if (!(history_is_stifled() && history_length >= history_max_entries)
+        && (next_line_index < history_length - 1))
         next_line_index++;
 
     /* Memorize it in the module' state */
