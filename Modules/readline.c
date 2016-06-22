@@ -87,11 +87,6 @@ typedef struct {
   PyObject *completer; /* Specify a word completer in Python */
   PyObject *begidx;
   PyObject *endidx;
-
-  /* When >= 0 this indicate the history index of the next line
-     to be considered, see operate_and_get_next() and
-     on_startup_hook(). */
-  int next_line_index;
 } readlinestate;
 
 
@@ -151,33 +146,25 @@ decode(const char *s)
 
 /* Replay one or more statement from the history */
 
+/* When >= 0 this indicate the history index of the next line
+   to be considered, see also on_startup_hook(). */
+static int _next_line_index = -1;
+
 static int
 operate_and_get_next (int count, int c)
 {
-    int next_line_index;
-#ifdef WITH_THREAD
-    PyGILState_STATE gilstate = PyGILState_Ensure();
-#endif
-
     /* Accept the current line. */
     rl_newline(1, c);
 
     /* Determine the index of the next line to use. */
-    next_line_index = where_history();
+    _next_line_index = where_history();
 
     /* If the history is not null and we are not already at its most
        recent entry, point to the next one otherwise redisplay the
        latest one again */
     if (!(history_is_stifled() && history_length >= history_max_entries)
-        && (next_line_index < history_length - 1))
-        next_line_index++;
-
-    /* Memorize it in the module' state */
-    readlinestate_global->next_line_index = next_line_index;
-
-#ifdef WITH_THREAD
-    PyGILState_Release(gilstate);
-#endif
+        && (_next_line_index < history_length - 1))
+        _next_line_index++;
 
     return 0;
 }
@@ -939,10 +926,10 @@ on_startup_hook()
     int r;
     PyGILState_STATE gilstate = PyGILState_Ensure();
 
-    if (readlinestate_global->next_line_index >= 0) {
+    if (_next_line_index >= 0) {
         /* Last command was operate-and-get-next: adjust history position accordingly */
-        rl_get_previous_history(history_length - readlinestate_global->next_line_index, 0);
-        readlinestate_global->next_line_index = -1;
+        rl_get_previous_history(history_length - _next_line_index, 0);
+        _next_line_index = -1;
     }
 
     r = on_hook(readlinestate_global->startup_hook);
@@ -1173,7 +1160,6 @@ setup_readline(readlinestate *mod_state)
 
     mod_state->begidx = PyLong_FromLong(0L);
     mod_state->endidx = PyLong_FromLong(0L);
-    mod_state->next_line_index = -1;
 
 #ifdef __APPLE__
     if (!using_libedit_emulation)
